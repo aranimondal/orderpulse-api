@@ -1,0 +1,13 @@
+# Uses a StorageClass backed by AWS EBS (gp3) on EKS, provisioned dynamically
+# by the EBS CSI driver. Persists data across pod restarts/re-deploys, which
+# satisfies "Database data should not be lost if the pod is re-deployed."
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: orderpulse-gp3
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+parameters:
+  type: gp3
+  fsType: ext4

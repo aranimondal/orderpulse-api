@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: orderpulse-db-headless
+  namespace: orderpulse
+  labels:
+    app: orderpulse-db
+spec:
+  clusterIP: None        # headless - needed for StatefulSet stable network identity
+  selector:
+    app: orderpulse-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+---
+# Stable, cluster-internal-only entrypoint for the API tier to talk to the DB.
+# No NodePort/LoadBalancer here -> DB is NOT reachable from outside the cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: orderpulse-db
+  namespace: orderpulse
+  labels:
+    app: orderpulse-db
+spec:
+  type: ClusterIP
+  selector:
+    app: orderpulse-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+      name: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: orderpulse-db
+  namespace: orderpulse
+spec:
+  serviceName: orderpulse-db-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orderpulse-db
+  template:
+    metadata:
+      labels:
+        app: orderpulse-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - configMapRef:
+                name: orderpulse-db-config
+            - secretRef:
+                name: orderpulse-db-secret
+          volumeMounts:
+            - name: orderpulse-db-data
+              mountPath: /var/lib/postgresql/data
+              subPath: postgres   # avoids "lost+found" issue on fresh EBS volumes
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "orderpulse"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "$(POSTGRES_USER)", "-d", "orderpulse"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+  volumeClaimTemplates:
+    - metadata:
+        name: orderpulse-db-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: orderpulse-gp3
+        resources:
+          requests:
+            storage: 5Gi

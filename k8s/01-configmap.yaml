@@ -1,0 +1,24 @@
+# Non-sensitive configuration for the Service API tier.
+# This is intentionally kept OUTSIDE the pod spec and application code,
+# satisfying the "configurable via ConfigMap" requirement.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orderpulse-api-config
+  namespace: orderpulse
+data:
+  DB_HOST: "orderpulse-db.orderpulse.svc.cluster.local"   # cluster-internal DNS name, never the pod IP
+  DB_PORT: "5432"
+  DB_NAME: "orderpulse"
+  APP_ENVIRONMENT: "production"
+  DB_POOL_MAX_SIZE: "10"
+  DB_POOL_MIN_IDLE: "2"
+  LOG_LEVEL: "INFO"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orderpulse-db-config
+  namespace: orderpulse
+data:
+  POSTGRES_DB: "orderpulse"

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orderpulse-api
+  namespace: orderpulse
+  labels:
+    app: orderpulse-api
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: orderpulse-api
+  template:
+    metadata:
+      labels:
+        app: orderpulse-api
+    spec:
+      containers:
+        - name: orderpulse-api
+          image: aranimondal/orderpulse-api:1.0.0   # see README for Docker Hub URL
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: orderpulse-api-config
+            - secretRef:
+                name: orderpulse-api-secret
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          # Self-healing: kubelet restarts the container automatically if either
+          # probe fails repeatedly, and the Deployment controller reschedules
+          # the pod if it's deleted/evicted/its node dies.
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            failureThreshold: 30
+            periodSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3

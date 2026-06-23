@@ -1,0 +1,25 @@
+# Requires the AWS Load Balancer Controller to be installed on the EKS cluster.
+# Creates an internet-facing ALB that routes to the orderpulse-api ClusterIP Service.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orderpulse-ingress
+  namespace: orderpulse
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orderpulse-api
+                port:
+                  number: 80
