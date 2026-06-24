@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * OrderPulse API
  * <p>
  * Real-time order status lookup service for the storefront/ops dashboard.
- * Reads order records persisted by the checkout pipeline and exposes them
+ * Reads order records persisted by the pipeline and exposes them
  * over a simple REST API so support agents and customers can track an
  * order without hitting the database directly.
  */
