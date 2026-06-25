@@ -34,11 +34,11 @@ spec:
                 name: orderpulse-api-secret
           resources:
             requests:
+              cpu: "25m"
+              memory: "64Mi"
+            limits:
               cpu: "200m"
               memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
           # Self-healing: kubelet restarts the container automatically if either
           # probe fails repeatedly, and the Deployment controller reschedules
           # the pod if it's deleted/evicted/its node dies.

@@ -65,11 +65,11 @@ spec:
               subPath: postgres   # avoids "lost+found" issue on fresh EBS volumes
           resources:
             requests:
-              cpu: "250m"
-              memory: "256Mi"
+              cpu: "25m"
+              memory: "64Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "200m"
+              memory: "256Mi"
           readinessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
