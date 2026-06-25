@@ -20,7 +20,7 @@ Backed by Postgres, seeded with 8 sample order records via a Flyway migration
 
 - Repo: https://github.com/aranimondal/orderpulse-api
 - Docker Hub image: https://hub.docker.com/r/aranimondal/orderpulse-api/tags
-- Live API (via Ingress/ALB): `http://<alb-dns-name>/api/v1/orders` — get the actual hostname with:
+- Live API (via Ingress/ALB): `http://k8s-orderpul-orderpul-d0ee8748bb-1588443580.ap-south-1.elb.amazonaws.com/api/v1/orders` — get the actual hostname with:
   ```
   kubectl get ingress orderpulse-ingress -n orderpulse
   ```
