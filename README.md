@@ -1,72 +1,92 @@
 # OrderPulse API
 
-Real-time order status lookup microservice. Built this as a home assignment to demo a
-fairly standard "service tier + database tier" setup on Kubernetes — the kind of thing
-an e-commerce ops/support team would actually use to look up an order without giving
-anyone direct DB access.
-
-## What it does
-
-- `GET /api/v1/orders` – list all orders
-- `GET /api/v1/orders/{orderId}` – look up a single order
-- `GET /api/v1/orders/health/info` – quick service/env info
-- `GET /actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness` – used by k8s probes
-- Swagger UI at `/swagger-ui.html` once it's running
-
-Backed by Postgres, seeded with 8 sample order records via a Flyway migration
-(`src/main/resources/db/migration/V1__init_orders.sql`) so there's always data to query.
+Order status lookup microservice built with Java 21 and Spring Boot 3.4. This project demonstrates a two-tier architecture (Service API + Database) deployed on Kubernetes, where the API tier fetches order records from a PostgreSQL database and exposes them over REST endpoints.
 
 ## Links
 
-- Repo: https://github.com/aranimondal/orderpulse-api
-- Docker Hub image: https://hub.docker.com/r/aranimondal/orderpulse-api/tags
-- Live API (via Ingress/ALB): `http://k8s-orderpul-orderpul-d0ee8748bb-1588443580.ap-south-1.elb.amazonaws.com/api/v1/orders` — get the actual hostname with:
-  ```
-  kubectl get ingress orderpulse-ingress -n orderpulse
-  ```
-- Screen recording: `docs/demo-recording.mp4` (link added after recording — see Demo section below)
+| Item | URL |
+|------|-----|
+| Code Repository | https://github.com/aranimondal/orderpulse-api |
+| Docker Hub Image | https://hub.docker.com/r/aranimondal/orderpulse-api/tags |
+| Service API Tier (Live) | http://k8s-orderpul-orderpul-d0ee8748bb-1588443580.ap-south-1.elb.amazonaws.com/api/v1/orders |
+| Screen Recording | `docs/demo-recording.mp4` |
 
-## Tech stack
+## API Endpoints
 
-- Java 21, Spring Boot 3.4.1
-- Maven (see "Why Maven" below)
-- Spring Data JPA + Hikari connection pooling
-- Flyway for schema/versioned seed data
-- PostgreSQL 16
-- Docker (multi-stage build, runs as non-root)
-- Kubernetes (StatefulSet for DB, Deployment + HPA + Ingress for API)
-- Target platform: AWS EKS, EBS (gp3) for persistent storage, ALB for ingress
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/orders` | Fetch all orders from database |
+| GET | `/api/v1/orders/{orderId}` | Fetch a single order by ID |
+| GET | `/api/v1/orders/health/info` | Service health and environment info |
+| GET | `/actuator/health` | Kubernetes liveness/readiness probe endpoint |
 
-### Why Maven, not Gradle
+## Tech Stack
 
-Went with Maven here on purpose. For a single-module Spring Boot service like this with a
-fairly standard dependency set, Gradle's incremental-build speed advantage doesn't really pay
-off — there's no multi-module build graph to optimize, and the project doesn't have any
-custom build logic that would benefit from Gradle's flexibility. Maven's declarative,
-convention-heavy `pom.xml` is easier for someone else to open and understand at a glance,
-which matters more here than shaving a few seconds off local build time. Also keeps CI
-simpler — `mvn clean package` inside the Docker build stage, no wrapper-version
-gotchas to manage. If this grows into a multi-module setup (separate API/contracts module,
-shared libs, etc.) I'd reconsider, since that's where Gradle starts to actually win.
+- Java 21, Spring Boot 3.4.1, Maven
+- Spring Data JPA with HikariCP connection pooling
+- Flyway for database schema migration and seed data
+- PostgreSQL 16 (database tier)
+- Docker (multi-stage build, non-root container)
+- Kubernetes on AWS EKS (Deployment, StatefulSet, HPA, Ingress, ConfigMap, Secrets)
+- AWS EBS gp3 for persistent storage, ALB for external ingress
 
-## Local run (without Docker)
+## Project Structure
 
-```bash
-# spin up a local postgres for dev
-docker run --name orderpulse-local-db -e POSTGRES_DB=orderpulse \
-  -e POSTGRES_USER=orderpulse_user -e POSTGRES_PASSWORD=devpass123 \
-  -p 5432:5432 -d postgres:16-alpine
-
-export DB_HOST=localhost DB_PORT=5432 DB_NAME=orderpulse
-export DB_USERNAME=orderpulse_user DB_PASSWORD=devpass123
-
-mvn clean package -DskipTests
-java -jar target/orderpulse-api.jar
+```
+├── src/main/java          # Application source code
+├── src/main/resources     # application.yml + Flyway migrations
+├── src/test/java          # Unit and integration tests
+├── k8s/                   # All Kubernetes manifest files
+├── scripts/               # Helper scripts (secret creation)
+├── docs/                  # Documentation and screen recording
+├── Dockerfile             # Multi-stage Docker build
+└── pom.xml                # Maven build configuration
 ```
 
-Then hit `curl http://localhost:8080/api/v1/orders`.
+## Kubernetes Architecture
 
-## Build & push the image
+```
+                    ┌─────────────────────────────────┐
+                    │        AWS ALB (Ingress)         │
+                    │   internet-facing, port 80       │
+                    └──────────────┬──────────────────┘
+                                   │
+                    ┌──────────────▼──────────────────┐
+                    │   orderpulse-api (Deployment)    │
+                    │   4 replicas, rolling updates    │
+                    │   ConfigMap + Secret driven      │
+                    │   HPA: 4-10 pods on CPU/memory   │
+                    └──────────────┬──────────────────┘
+                                   │ ClusterIP Service (DNS)
+                    ┌──────────────▼──────────────────┐
+                    │   orderpulse-db (StatefulSet)    │
+                    │   1 replica, PVC on EBS gp3      │
+                    │   ClusterIP only (not exposed)   │
+                    │   8 seed records via Flyway      │
+                    └─────────────────────────────────┘
+```
+
+## How to Run Locally
+
+Requires Java 21 and a running PostgreSQL instance.
+
+```bash
+# Create the database (one-time)
+psql -U postgres -c "CREATE DATABASE orderpulse;"
+
+# Build
+mvn clean package -DskipTests
+
+# Run (pass DB credentials as environment variables)
+java -Dspring.datasource.url=jdbc:postgresql://localhost:5432/orderpulse \
+     -Dspring.datasource.username=postgres \
+     -Dspring.datasource.password=<your-password> \
+     -jar target/orderpulse-api.jar
+```
+
+Flyway automatically creates the `orders` table and inserts 8 sample records on first startup.
+
+## Docker
 
 ```bash
 docker build -t aranimondal/orderpulse-api:1.0.0 .
@@ -74,80 +94,64 @@ docker login
 docker push aranimondal/orderpulse-api:1.0.0
 ```
 
-## Deploying to Kubernetes (AWS EKS)
+The image is also built and pushed automatically via GitHub Actions on every push to `main`.
 
-Assumes you already have an EKS cluster with:
-- the EBS CSI driver add-on installed (for the `orderpulse-gp3` StorageClass)
-- the AWS Load Balancer Controller installed (for the ALB Ingress)
-- metrics-server installed (for the HPA)
+## Deploying to Kubernetes (EKS)
+
+Prerequisites on the EKS cluster:
+- EBS CSI driver (for PersistentVolume provisioning)
+- AWS Load Balancer Controller (for ALB Ingress)
+- metrics-server (for HPA)
 
 ```bash
-# 1. create the namespace + real secrets (password never touches a tracked YAML file)
-DB_USER=orderpulse_user DB_PASSWORD='<choose-a-strong-password>' ./scripts/create-secrets.sh
+# Create secrets (password never stored in any tracked YAML)
+kubectl create namespace orderpulse
+kubectl create secret generic orderpulse-db-secret --namespace orderpulse \
+  --from-literal=POSTGRES_USER=orderpulse_user \
+  --from-literal=POSTGRES_PASSWORD='<strong-password>'
+kubectl create secret generic orderpulse-api-secret --namespace orderpulse \
+  --from-literal=DB_USERNAME=orderpulse_user \
+  --from-literal=DB_PASSWORD='<strong-password>'
 
-# 2. apply everything else
+# Deploy all resources
 kubectl apply -k k8s/
 
-# 3. check rollout
-kubectl get pods -n orderpulse -w
-```
-
-### Verifying it works
-
-```bash
-# all objects up?
+# Verify
 kubectl get all -n orderpulse
-
-# get the ALB hostname
-kubectl get ingress orderpulse-ingress -n orderpulse
-
-# hit the API
-curl http://<alb-hostname>/api/v1/orders
-
-# self-healing - kill an API pod, watch it get replaced
-POD=$(kubectl get pods -n orderpulse -l app=orderpulse-api -o jsonpath='{.items[0].metadata.name}')
-kubectl delete pod "$POD" -n orderpulse
-kubectl get pods -n orderpulse -l app=orderpulse-api -w
-
-# self-healing + persistence on DB side
-kubectl delete pod -n orderpulse -l app=orderpulse-db
-kubectl get pods -n orderpulse -l app=orderpulse-db -w
-# once it's back up, call the API again - same 8 records should still be there
-
-# rolling update demo
-kubectl set image deployment/orderpulse-api orderpulse-api=aranimondal/orderpulse-api:1.0.1 -n orderpulse
-kubectl rollout status deployment/orderpulse-api -n orderpulse
-
-# HPA demo (needs a load generator, e.g. hey/k6/ab against the ALB URL)
-kubectl get hpa orderpulse-api-hpa -n orderpulse -w
+kubectl get ingress -n orderpulse
 ```
 
-## Demo / screen recording checklist
+## Kubernetes Manifests (k8s/ directory)
 
-- [ ] `kubectl get all -n orderpulse` showing every object Running
-- [ ] API call returning order records
-- [ ] Kill API pod → new pod scheduled automatically
-- [ ] Kill DB pod → new pod scheduled, data still intact (same 8 orders)
-- [ ] Rolling update of the API deployment
-- [ ] HPA scaling out under load, then back down
+| File | Purpose |
+|------|---------|
+| `00-namespace.yaml` | Namespace isolation |
+| `01-configmap.yaml` | DB host, port, pool config (externalized from code) |
+| `02-secret.template.yaml` | Template showing secret structure (no real values) |
+| `03-storageclass.yaml` | EBS gp3 StorageClass for DB persistence |
+| `04-db-statefulset.yaml` | PostgreSQL StatefulSet + ClusterIP Services |
+| `05-api-deployment.yaml` | API Deployment (4 replicas, rolling update, probes) |
+| `06-api-service.yaml` | ClusterIP Service for the API tier |
+| `07-api-hpa.yaml` | HorizontalPodAutoscaler (CPU 65%, memory 75%) |
+| `08-ingress.yaml` | ALB Ingress for external access |
 
-## FinOps notes (short version — full writeup in `docs/Documentation.docx`)
+## FinOps Considerations
 
-- Requests/limits set per pod (200m/500m CPU, 256Mi/512Mi memory) — sized from actual
-  observed usage, not guessed numbers.
-- HPA min replicas kept at 4 to satisfy the requirement, but in a non-assignment, real
-  cost-sensitive setup I'd drop `minReplicas` to 2 and let it scale up on demand instead
-  of paying for 4 pods around the clock.
-- DB sits on `gp3` EBS instead of the older `gp2` — gp3 is ~20% cheaper per GB and lets
-  you tune IOPS/throughput independently instead of overpaying for storage you don't need.
-- Three concrete cost levers identified and discussed in the docx: right-sizing via VPA
-  recommendations, scaling down non-prod environments after hours, and moving worker
-  nodes to Graviton (arm64) instances for better price-performance.
+- CPU and memory requests/limits are defined for both tiers, sized based on observed `kubectl top` metrics rather than arbitrary numbers.
+- Three cost optimization opportunities identified:
+  1. Right-sizing resource requests from actual pod metrics (implemented)
+  2. Reducing HPA `minReplicas` during off-peak hours
+  3. Using AWS Graviton (arm64) instances for worker nodes (~20-40% better price-performance)
+- Database uses gp3 EBS volumes which decouple IOPS from storage size, avoiding over-provisioning.
 
-## Known limitations / things I'd do differently with more time
+Full FinOps analysis is in `docs/Documentation.docx`.
 
-- No mTLS between tiers (would add a service mesh or NetworkPolicy in a real prod setup).
-- Single DB replica — fine for this assignment's persistence requirement, but a real
-  production Postgres would use a managed service (RDS) with Multi-AZ instead of a
-  self-managed StatefulSet.
-- No CI/CD pipeline wired up — built and pushed images manually for this assignment.
+## Screen Recording Demo Checklist
+
+The recording demonstrates:
+- All Kubernetes objects deployed and running
+- API call retrieving order records from the database tier
+- Killing an API pod and showing it auto-regenerates (self-healing)
+- Killing the database pod and showing it regenerates with data intact (persistence)
+- Rolling update deployment strategy
+- HPA configuration and resource metrics
