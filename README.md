@@ -9,7 +9,6 @@ Order status lookup microservice built with Java 21 and Spring Boot 3.4. This pr
 | Code Repository | https://github.com/aranimondal/orderpulse-api |
 | Docker Hub Image | https://hub.docker.com/r/aranimondal/orderpulse-api/tags |
 | Service API Tier (Live) | http://k8s-orderpul-orderpul-d0ee8748bb-1588443580.ap-south-1.elb.amazonaws.com/api/v1/orders |
-| Screen Recording | `docs/demo-recording.mp4` |
 
 ## API Endpoints
 
@@ -38,7 +37,7 @@ Order status lookup microservice built with Java 21 and Spring Boot 3.4. This pr
 ├── src/test/java          # Unit and integration tests
 ├── k8s/                   # All Kubernetes manifest files
 ├── scripts/               # Helper scripts (secret creation)
-├── docs/                  # Documentation and screen recording
+├── docs/                  # Documentation
 ├── Dockerfile             # Multi-stage Docker build
 └── pom.xml                # Maven build configuration
 ```
